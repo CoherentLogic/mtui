@@ -1,4 +1,4 @@
-%TERMIO
+%TERMIO ;
  Q
  ; 
  ; GETCH
@@ -22,9 +22,10 @@
  ;
  ;  Ex.: %GLACCEL("KEY_F2")="D LABEL^ROUTINE"
  ;
-GETCH(EVENT)
+GETCH(EVENT) ;
  N RES,ZB,RETVAL,SUB,MCODE S RES=-1
- U $P:(ESC:FLUSH)
+ I SYSID=47 U $P:(ESC:FLUSH) ; GT.M/YottaDB
+ I SYSID=49 U $P             ; FreeM
  F  Q:RES'=-1  D
  . R *RES:0
  . I $D(%IOHOOK)=10 D
@@ -44,13 +45,13 @@ GETCH(EVENT)
  ; ADDACCEL
  ; Add a global accelerator to GETCH's table
  ;
-ADDACCEL(KEYEVT,MCODE,KEYNAME,DESC)
+ADDACCEL(KEYEVT,MCODE,KEYNAME,DESC) ;
  S %GLACCEL(KEYEVT)=MCODE
  S %GLACCEL(KEYEVT,"DESC")=$G(DESC,"[NO DESCRIPTION]")
  S %GLACCEL(KEYEVT,"NAME")=KEYNAME
  Q
  ;
-KBHELP
+KBHELP ;
  N BINDING S BINDING="" 
  F  S BINDING=$O(%GLACCEL(BINDING)) Q:BINDING=""  D
  . W $J(%GLACCEL(BINDING,"NAME"),10),": ",%GLACCEL(BINDING,"DESC"),!
@@ -60,7 +61,7 @@ KBHELP
  ; Equivalent to tgetstr() in termcap library
  ;  CODE: capability code (by value)
  ;
-GETSTR(CODE)
+GETSTR(CODE) ;
  I $G(%IOCAP(CODE))'="" Q %IOCAP(CODE)		;try the first-level entry
  I $G(%IOCAP(CODE))="" Q $G(%IOCAP("tc",CODE))  ;if empty, try the more specific one
  ;
@@ -69,7 +70,7 @@ GETSTR(CODE)
  ;  HPOS: Column
  ;  VPOS: Row
  ;
-GOTO(HPOS,VPOS)
+GOTO(HPOS,VPOS) ;
  N PA,OUT S PA(1)=VPOS,PA(2)=HPOS,OUT=""
  Q $$PARAM($$GETSTR("cm"),.PA)
  ;
@@ -77,27 +78,33 @@ GOTO(HPOS,VPOS)
  ; Must be called first. Initializes memory data structures for
  ; terminal I/O.
  ;
-INIT
+INIT ;
  N TC,TN
+ S SYSID=$P($SYSTEM,",",1)
  ; 
  ; Get environment variable and read in term def.
  ; 
- S TERM=$ZTRNLNM("TERM")
- G:TERM="" NOTERM	; TERM wasn't set. Error out.
+ I SYSID=47 S TERM=$ZTRNLNM("TERM") ; GT.M/YottaDB
+ I SYSID=49 S TERM=^$DEVICE($P,"ZTERMID") ; FreeM
+ G:TERM="" NOTERM ; TERM wasn't set. Error out.
  M %IOCAP=^%IOCAP("TERMCAP",TERM)
  ;
  ; Merge in more specific capability strings indirected through
  ; tc capability string.
  ;
- S TN=%IOCAP("tc")
- M TC=^%IOCAP("TERMCAP",TN)
- M %IOCAP("tc")=TC
+ ;S TN=%IOCAP("tc")
+ ;M TC=^%IOCAP("TERMCAP",TN)
+ ;M %IOCAP("tc")=TC
  ;
- ; Get screen dimensions (very clever hack from David Wicksell)
+ ; Get screen dimensions
  ;
- ZSHOW "D":SCREEN
- S %IOCAP("COLUMNS")=+$P(SCREEN("D",1),"WIDTH=",2)
- S %IOCAP("ROWS")=+$P(SCREEN("D",1),"LENG=",2)
+ I SYSID=47 D  ; GT.M/YottaDB
+ . ZSHOW "D":SCREEN ; hack from David Wicksell
+ . S %IOCAP("COLUMNS")=+$P(SCREEN("D",1),"WIDTH=",2)
+ . S %IOCAP("ROWS")=+$P(SCREEN("D",1),"LENG=",2)
+ I SYSID=49 D  ; FreeM
+ . S %IOCAP("COLUMNS")=$ZCOLUMNS
+ . S %IOCAP("ROWS")=$ZROWS
  ;
  ; Set up %IOKB for special key lookup.  
  ; Used by $$GETCH.
@@ -126,7 +133,8 @@ INIT
  S %IOKB($$GETSTR("kN"))="KEY_NPAGE"
  S %IOKB($$GETSTR("kP"))="KEY_PPAGE"
  S %IOKB($$GETSTR("@7"))="KEY_END"
- K %IOKB("")		; make sure we don't have an empty entry
+ I SYSID=47 K %IOKB("")		; (GT.M/YDB) make sure we don't have an empty entry
+ I SYSID=49 KVALUE %IOKB ; (FreeM)
  Q
  ;
  ; Inserts parameters into CODE and returns expanded string.
@@ -134,7 +142,7 @@ INIT
  ;  PA: params array (by reference)
  ;    PA(n)=paramValue
  ;
-PARAM(CODE,PA)
+PARAM(CODE,PA) ;
  N OUTSTR S OUTSTR=""	
  ;
  ; We don't need to expand params if PA(1) is empty.
@@ -159,21 +167,22 @@ PARAM(CODE,PA)
  ; Swap the values at nodes PA(P1) and PA(P2)
  ;  PA: Parameter array (by reference)
  ;
-PARMSWAP(PA,P1,P2)
+PARMSWAP(PA,P1,P2) ;
  N T1,T2 S T1=PA(P1),T2=PA(P2)
  S PA(P1)=T2,PA(P2)=T1
  Q
  ; 
  ; Disables echoing
  ;
-NOECHO
- U $P:NOECHO
+NOECHO ;
+ I SYSID=47 U $P:NOECHO ; GT.M/YottaDB
+ I SYSID=49 U $P:0      ; FreeM
  Q
  ;
  ; ENDWIN
  ;  Clean up memory structures
  ;
-ENDWIN
+ENDWIN ;
  K %IOCAP
  K %IOKB
  K TERM
@@ -181,6 +190,6 @@ ENDWIN
  ;
  ; ERROR SUBROUTINES
  ;
-NOTERM
+NOTERM ;
  W "%TERMIO-F-NOTERMENV, The TERM environment variable is not set."
  H
